@@ -35,11 +35,13 @@ architecture Behavioral of register32 is
 			end if;
 end Behavioral;
 
+
 entity mux_2to1_32 is
-    Port ( in0 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
-			  in1 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
-		     sel 	 		: in   STD_LOGIC;
-           out_y			: out  STD_LOGIC_VECTOR(31 downto 0));
+    Port ( 
+			in0 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
+			in1 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
+		    sel 	 		: in   STD_LOGIC;
+            out_y			: out  STD_LOGIC_VECTOR(31 downto 0));
 end mux_2to1_32;
 
 architecture Behavioral of mux_2to1_32 is
@@ -202,7 +204,7 @@ PC_REG : register32
 		CK_in 	=> CK_25MHz,
 		RESET_in	=> RESET_in,
 		HOLD_in	=> HOLD_in,
-		REGISTER_value_in	=> PC_Source,
+		REGISTER_value_in	=> PC_reg_in,
 		REGISTER_default_val	=> x"40000000");
 		REGISTER_out => PC_reg
 	);
@@ -223,30 +225,33 @@ PC_SRC_MUX	:	mux_4to1_32
 PC_plus_4 <= PC_reg + 4;
 
 -- IR_reg   (rename of the IMem_rd_data signal)
-imm <= IMem_rd_data;
+IR_reg <= IMem_rd_data;
 
 -- imm sign extension	  (create the sext_imm signal)
+imm <= IR_reg(15 downto 0);
 sext_imm <= std_logic_vector(resize(signed(imm), sext_imm'length));
 
 -- BRANCH address  (create the branch_adrs signal)
-
+branch_adrs <= PC_plus_4_pID + (sext_imm(29 downto 0) & b"00") -- branch_adrs = PC_plus_4_pID + sext_imm*4		
 
 -- JUMP address    (create the jump_adrs signal)
+jump_adrs <= PC_plus_4_pID(31 downto 28) & (IR_reg(25 downto 0) & b"00") 
 
 
 -- JR address    (create the jr_adrs signal)  
-
+jr_adrs <= x"00400004";
 	
 -- PC_plus_4_pID register   (create the PC_plus_4_pID signal)
-IR_REG : register32
+PC_plus_4_pID_REG : register32
 	port map(
 		CK_in 	=> CK_25MHz,
 		RESET_in	=> RESET_in,
 		HOLD_in	=> HOLD_in,
 		REGISTER_value_in	=> PC_plus_4,
-		REGISTER_default_val	=> x"40000000"); -- TODO: Actual default value?
-		REGISTER_out => PC_plus_4_pID
-	);
+		REGISTER_default_val	=> x"00000000"),
+		REGISTER_out => PC_plus_4_pID );
+ 
+
 -- INSTRUCTION: The MIPS instruction coding is described in Appendix A
 -- instruction decoder
 opcode <= IR_reg(31 downto 26);

@@ -11,47 +11,8 @@ library IEEE ;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
-
 -- ************************************************************************************************
 -- ************************************************************************************************
-entity register32 is 
-	Port	(	CK_in 				:	in	STD_LOGIC
-				RESET_in			:	in	STD_LOGIC
-				HOLD_in				:	in	STD_LOGIC
-				REGISTER_value_in	:	in	STD_LOGIC_VECTOR(31 downto 0));
-				REGISTER_default_val	:	in	STD_LOGIC_VECTOR(31 downto 0));
-				REGISTER_out		:	out	STD_LOGIC_VECTOR(31 downto 0));
-end register32;
-
-architecture Behavioral of register32 is
-	begin
-		process(CK_in, RESET_in, HOLD_in, REGISTER_out)
-		begin
-			if HOLD_in = '0' then
-				if RESET_in = '1' then											
-					REGISTER_out <= REGISTER_default_val;
-				elsif CK_in 'event and CK_in = '1' then
-					REGISTER_out <= REGISTER_value_in;
-			end if;
-end Behavioral;
-
-
-entity mux_2to1_32 is
-    Port ( 
-			in0 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
-			in1 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
-		    sel 	 		: in   STD_LOGIC;
-            out_y			: out  STD_LOGIC_VECTOR(31 downto 0));
-end mux_2to1_32;
-
-architecture Behavioral of mux_2to1_32 is
-
-begin
-	with sel select 
-		out_y  <=
-		in0 when '0',
-		in1 when others;
-end Behavioral;
 
 entity mux_4to1_32 is
     Port ( in0 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
@@ -72,6 +33,37 @@ begin
 		in2 when "10",
 		in3 when others;
 end Behavioral;
+
+library IEEE ;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity register32 is 
+	Port	(	CK_in 				:	in	STD_LOGIC;
+				RESET_in			:	in	STD_LOGIC;
+				HOLD_in				:	in	STD_LOGIC;
+				REGISTER_value_in	:	in	STD_LOGIC_VECTOR(31 downto 0);
+				REGISTER_default_val	:	in	STD_LOGIC_VECTOR(31 downto 0);
+				REGISTER_out		:	out	STD_LOGIC_VECTOR(31 downto 0));
+end register32;
+
+architecture Behavioral of register32 is
+	begin
+		process(CK_in, RESET_in, HOLD_in)
+		begin			
+				if RESET_in = '1' and HOLD_in = '0' then											
+					REGISTER_out <= REGISTER_default_val;
+				elsif CK_in 'event and CK_in = '1' and HOLD_in = '0' then
+					REGISTER_out <= REGISTER_value_in;
+				end if;			
+		end process;
+end Behavioral;
+
+library IEEE ;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use ieee.numeric_std.all;
 
 entity Fetch_Unit is
 Port	(	
@@ -103,8 +95,25 @@ rdbk15			  :out STD_LOGIC_VECTOR (31 downto 0)
 end Fetch_Unit; 
 
 
-architecture Behavioral of Fetch_Unit is	   
+architecture Behavioral of Fetch_Unit is
 
+component register32 is 
+	Port	(	CK_in 				:	in	STD_LOGIC;
+				RESET_in			:	in	STD_LOGIC;
+				HOLD_in				:	in	STD_LOGIC;
+				REGISTER_value_in	:	in	STD_LOGIC_VECTOR(31 downto 0);
+				REGISTER_default_val	:	in	STD_LOGIC_VECTOR(31 downto 0);
+				REGISTER_out		:	out	STD_LOGIC_VECTOR(31 downto 0));
+end component;
+
+component mux_4to1_32 is
+    Port ( in0 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
+			  in1 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
+			  in2 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
+			  in3 	 		: in   STD_LOGIC_VECTOR(31 downto 0);
+		     sel 	 		: in   STD_LOGIC_VECTOR(1 downto 0);			  
+           out_y			: out  STD_LOGIC_VECTOR(31 downto 0));
+end component;
 -- ***********************************************************************************************
 -- ***********************************************************************************************
 
@@ -199,13 +208,13 @@ rdbk15 		<= 		x"00000000";
 -- ============================= IF phase processes ======================================
 -- ========================================= =============================================
 --PC register
-PC_REG : register32
+PC_REG_INST : register32	
 	port map(
 		CK_in 	=> CK_25MHz,
 		RESET_in	=> RESET_in,
 		HOLD_in	=> HOLD_in,
-		REGISTER_value_in	=> PC_reg_in,
-		REGISTER_default_val	=> x"40000000");
+		REGISTER_value_in	=> PC_mux_out,
+		REGISTER_default_val	=> x"40000000",
 		REGISTER_out => PC_reg
 	);
 	
@@ -219,7 +228,7 @@ PC_SRC_MUX	:	mux_4to1_32
 			in2 => x"00400004",
 			in3 => jump_adrs,
 			sel => PC_source,
-			out_y => PC_reg_in );
+			out_y => PC_mux_out );
 			
 -- PC Adder - incrementing PC by 4  (create the PC_plus_4 signal)
 PC_plus_4 <= PC_reg + 4;
@@ -232,10 +241,10 @@ imm <= IR_reg(15 downto 0);
 sext_imm <= std_logic_vector(resize(signed(imm), sext_imm'length));
 
 -- BRANCH address  (create the branch_adrs signal)
-branch_adrs <= PC_plus_4_pID + (sext_imm(29 downto 0) & b"00") -- branch_adrs = PC_plus_4_pID + sext_imm*4		
+branch_adrs <= PC_plus_4_pID + (sext_imm(29 downto 0) & b"00"); -- branch_adrs = PC_plus_4_pID + sext_imm*4		
 
 -- JUMP address    (create the jump_adrs signal)
-jump_adrs <= PC_plus_4_pID(31 downto 28) & (IR_reg(25 downto 0) & b"00") 
+jump_adrs <= PC_plus_4_pID(31 downto 28) & (IR_reg(25 downto 0) & b"00");
 
 
 -- JR address    (create the jr_adrs signal)  
@@ -248,7 +257,7 @@ PC_plus_4_pID_REG : register32
 		RESET_in	=> RESET_in,
 		HOLD_in	=> HOLD_in,
 		REGISTER_value_in	=> PC_plus_4,
-		REGISTER_default_val	=> x"00000000"),
+		REGISTER_default_val	=> x"00000000",
 		REGISTER_out => PC_plus_4_pID );
  
 

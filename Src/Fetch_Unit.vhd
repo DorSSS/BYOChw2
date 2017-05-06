@@ -214,7 +214,7 @@ PC_REG_INST : register32
 		RESET_in	=> RESET_in,
 		HOLD_in	=> HOLD_in,
 		REGISTER_value_in	=> PC_mux_out,
-		REGISTER_default_val	=> x"40000000",
+		REGISTER_default_val	=> x"00400000",
 		REGISTER_out => PC_reg
 	);
 	
@@ -268,7 +268,14 @@ funct  <= IR_reg(5 downto 0);
 
 
 -- PC_source decoder  (create the PC_source signal)
-
+with opcode select 
+	pc_source <=
+	"11" when "000010", --j
+	"11" when "000011", --jal
+	"10" when "001000", --jr
+	"01" when "000100", --beq
+	"01" when "000101", --bne
+	"00" when others;
 
 
 -- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

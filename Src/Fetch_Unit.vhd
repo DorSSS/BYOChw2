@@ -268,14 +268,13 @@ funct  <= IR_reg(5 downto 0);
 
 
 -- PC_source decoder  (create the PC_source signal)
-with opcode select 
 	pc_source <=
-	"11" when "000010", --j
-	"11" when "000011", --jal
-	"10" when "001000", --jr
-	"01" when "000100", --beq
-	"01" when "000101", --bne
-	"00" when others;
+	"11" when opcode = "000010" else --j
+	"11" when opcode = "000011" else --jal
+	"10" when opcode = "000000" and funct = "001000" else  --jr
+	"01" when opcode = "000100" else --beq
+	"01" when opcode = "000101" else --bne
+	"00";
 
 
 -- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
